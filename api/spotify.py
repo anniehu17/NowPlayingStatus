@@ -120,13 +120,37 @@ def makeSVG(data, background_color, border_color):
     contentBar = "".join(["<div class='bar'></div>" for _ in range(barCount)])
     barCSS = barGen(barCount)
 
+    # Default fallback song data (Rick Astley - Never Gonna Give You Up)
+    default_song = {
+        "name": "Never Gonna Give You Up",
+        "artists": [{"name": "Rick Astley", "external_urls": {"spotify": "https://open.spotify.com/artist/0gxyHStUsqpMadRV0Di1Qt"}}],
+        "album": {
+            "images": [
+                {"url": "https://i.scdn.co/image/ab67616d0000b273c5649add07ed3720be9d5526"},
+                {"url": "https://i.scdn.co/image/ab67616d0000b273c5649add07ed3720be9d5526"}
+            ],
+            "external_urls": {"spotify": "https://open.spotify.com/album/4uLU6hMCjMI75M1A2tKUQC"}
+        },
+        "external_urls": {"spotify": "https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT"}
+    }
+
     if not "is_playing" in data:
         #contentBar = "" #Shows/Hides the EQ bar if no song is currently playing
         currentStatus = "Recently played:"
-        recentPlays = get(RECENTLY_PLAYING_URL)
-        recentPlaysLength = len(recentPlays["items"])
-        itemIndex = random.randint(0, recentPlaysLength - 1)
-        item = recentPlays["items"][itemIndex]["track"]
+        try:
+            recentPlays = get(RECENTLY_PLAYING_URL)
+            recentPlaysLength = len(recentPlays["items"])
+            if recentPlaysLength > 0:
+                itemIndex = random.randint(0, recentPlaysLength - 1)
+                item = recentPlays["items"][itemIndex]["track"]
+            else:
+                # No recently played tracks, use default song
+                item = default_song
+                currentStatus = "Favorite song:"
+        except Exception:
+            # Error getting recently played tracks, use default song
+            item = default_song
+            currentStatus = "Favorite song:"
     else:
         item = data["item"]
         currentStatus = "Vibing to:"
@@ -136,9 +160,15 @@ def makeSVG(data, background_color, border_color):
         barPalette = gradientGen(PLACEHOLDER_URL, 4)
         songPalette = gradientGen(PLACEHOLDER_URL, 2)
     else:
-        image = loadImageB64(item["album"]["images"][1]["url"])
-        barPalette = gradientGen(item["album"]["images"][1]["url"], 4)
-        songPalette = gradientGen(item["album"]["images"][1]["url"], 2)
+        try:
+            image = loadImageB64(item["album"]["images"][1]["url"])
+            barPalette = gradientGen(item["album"]["images"][1]["url"], 4)
+            songPalette = gradientGen(item["album"]["images"][1]["url"], 2)
+        except Exception:
+            # Fallback to placeholder if image loading fails
+            image = PLACEHOLDER_IMAGE
+            barPalette = gradientGen(PLACEHOLDER_URL, 4)
+            songPalette = gradientGen(PLACEHOLDER_URL, 2)
 
     artistName = item["artists"][0]["name"].replace("&", "&amp;")
     songName = item["name"].replace("&", "&amp;")
@@ -173,7 +203,12 @@ def catch_all(path):
     try:
         data = get(NOW_PLAYING_URL)
     except Exception:
-        data = get(RECENTLY_PLAYING_URL)
+        try:
+            data = get(RECENTLY_PLAYING_URL)
+        except Exception:
+            # If both currently playing and recently played fail, use empty data
+            # The makeSVG function will handle this with the default song
+            data = {}
 
     svg = makeSVG(data, background_color, border_color)
 
